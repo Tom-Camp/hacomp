@@ -1,5 +1,4 @@
 import click
-import re
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,51 +37,50 @@ class Hacked:
         self.get_vars()
 
     def get_labels(self):
+        to_remove: List[int] = []
         for index, command in enumerate(self.asm_cmds):
-            if command[0] == "(":
-                label = self.asm_cmds.pop(index)
-                self.symbol_table[label[1:-1]] = index
+            if command.startswith("(") and command.endswith(")"):
+                self.symbol_table[command[1:-1]] = index
+                to_remove.append(index)
+        removed: List[str] = [item for index, item in enumerate(self.asm_cmds) if index not in to_remove]
+        self.asm_cmds = removed
 
     def get_vars(self):
         for command in self.asm_cmds:
-            if command[0] == "@" and command[1:] not in self.symbol_table:
-                if command[1:].isdigit():
-                    self.symbol_table[command[1:]] = command[1:]
-                else:
-                    self.symbol_table[command[1:]] = self.mem_addr
-                    self.mem_addr += 1
+            if command[0] == "@" and command[1:] not in self.symbol_table and not command[1:].isdigit():
+                self.symbol_table[command[1:]] = self.mem_addr
+                self.mem_addr += 1
 
     def parse_commands(self):
         for command in self.asm_cmds:
-            cmd = None
-            if command[0] == "@":
+            if command.startswith("@"):
                 cmd = self.parse_a_command(addr=command[1:])
             else:
                 cmd = self.parse_c_command(cmd_str=command)
             self.hack_cmds.append(cmd)
 
     def parse_a_command(self, addr: str) -> bin:
-        cmd = self.symbol_table.get(addr)
+        cmd = self.symbol_table.get(addr, addr)
         return int_to_16bit_binary(int(cmd))
 
     def parse_c_command(self, cmd_str: str) -> str:
         cmd = cmd_str.split(" /")[0]
-        jump = self.get_jump(cmd_str=cmd) if ";" in cmd else "000"
-        dest, comp = self.get_comp(cmd_str=cmd_str)
-        return f"111{cmd}{comp}{dest}{jump}"
+        command = cmd.split(";")
+        jump = self.get_jump(cmd_str=command[1]) if ";" in cmd else "000"
+        dest, comp = self.get_comp_and_dest(cmd_str=command[0])
+        return f"111{comp}{dest}{jump}"
 
     @staticmethod
-    def get_comp(cmd_str: str) -> tuple:
+    def get_comp_and_dest(cmd_str: str) -> tuple:
         cmd = cmd_str.split("=")
         dest = c_instructions.get("dest").get(cmd[0]) if len(cmd) == 2 else "000"
         comp_part = cmd[1] if len(cmd) == 2 else cmd[0]
-        comp = c_instructions.get("comp").get(comp_part)
+        comp = c_instructions.get("comp").get(comp_part, "0101010")
         return dest, comp
 
     @staticmethod
     def get_jump(cmd_str: str) -> str:
-        jump_cmd = cmd_str.split(";")[1]
-        jump = c_instructions.get("jump").get(jump_cmd)
+        jump = c_instructions.get("jump").get(cmd_str)
         return jump
 
     def write_hack(self):
@@ -105,7 +103,7 @@ def main(filename: str):
     asm_parser.parse_commands()
     asm_parser.write_hack()
     for index, cmd in enumerate(asm_parser.asm_cmds):
-        print(index, cmd)
+        print(cmd)
 
 if __name__ == "__main__":
     main()
