@@ -37,17 +37,17 @@ class Hacked:
         self.get_vars()
 
     def get_labels(self):
-        to_remove: List[int] = []
-        for index, command in enumerate(self.asm_cmds):
-            if command.startswith("(") and command.endswith(")"):
-                self.symbol_table[command[1:-1]] = index
-                to_remove.append(index)
-        removed: List[str] = [item for index, item in enumerate(self.asm_cmds) if index not in to_remove]
-        self.asm_cmds = removed
+        count: int = 0
+        while count < len(self.asm_cmds):
+            if self.asm_cmds[count].startswith("(") and self.asm_cmds[count].endswith(")"):
+                self.symbol_table[self.asm_cmds[count][1:-1]] = count
+                self.asm_cmds.pop(count)
+            else:
+                count += 1
 
     def get_vars(self):
-        for command in self.asm_cmds:
-            if command[0] == "@" and command[1:] not in self.symbol_table and not command[1:].isdigit():
+        for index, command in enumerate(self.asm_cmds):
+            if command.startswith("@") and command[1:] not in self.symbol_table and not command[1:].isdigit():
                 self.symbol_table[command[1:]] = self.mem_addr
                 self.mem_addr += 1
 
